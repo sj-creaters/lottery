@@ -160,7 +160,7 @@
         }
         const currentBgImageUrl = data.currentBgImageUrl || "";
         if (currentBgImageUrl) {
-          document.body.style.backgroundImage = url('${currentBgImageUrl}');
+          document.body.style.backgroundImage = `url('${currentBgImageUrl}')`;
           document.body.style.backgroundRepeat = "repeat";
         } else {
           document.body.style.backgroundImage = "";
@@ -190,7 +190,7 @@
       });
       // 固定列数: 1行に3個配置（賞が3個未満ならその数）
       let colCount = prizesList.length >= 3 ? 3 : prizesList.length;
-      tilesOverlay.style.gridTemplateColumns = repeat(${colCount}, 1fr);
+      tilesOverlay.style.gridTemplateColumns =  `repeat(${colCount}, 1fr)`;
       prizesList.forEach(prize => {
         const tile = document.createElement("div");
         tile.className = "tile";
