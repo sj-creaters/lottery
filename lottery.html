@@ -44,14 +44,15 @@
       pointer-events: none;
       padding: 10px;
       box-sizing: border-box;
+      /* 1行あたり3列に固定（賞の数が少ない場合はその数に合わせる） */
       grid-template-columns: repeat(3, 1fr);
       justify-items: center;
       align-items: center;
       justify-content: center;
     }
-    /* 賞タイル：横幅90%、flexで中央寄せ（初期状態） */
+    /* 賞タイル：横幅90%、flexで中央寄せ（ただし、後から JS で調整） */
     .tile {
-      width: 90%;
+      width: 97%;
       height: 40px;
       display: flex;
       align-items: center;
@@ -69,6 +70,7 @@
       overflow: hidden;
       white-space: nowrap;
       text-overflow: ellipsis;
+      /* 初期は中央 */
       text-align: center;
     }
     /* active 状態 */
@@ -158,7 +160,7 @@
         }
         const currentBgImageUrl = data.currentBgImageUrl || "";
         if (currentBgImageUrl) {
-          document.body.style.backgroundImage = `url('${currentBgImageUrl}')`;
+          document.body.style.backgroundImage = url('${currentBgImageUrl}');
           document.body.style.backgroundRepeat = "repeat";
         } else {
           document.body.style.backgroundImage = "";
@@ -186,21 +188,22 @@
         prize.id = docSnap.id;
         prizesList.push(prize);
       });
-      // 固定列数: 1行に3個配置
+      // 固定列数: 1行に3個配置（賞が3個未満ならその数）
       let colCount = prizesList.length >= 3 ? 3 : prizesList.length;
-      tilesOverlay.style.gridTemplateColumns = `repeat(${colCount}, 1fr)`;
+      tilesOverlay.style.gridTemplateColumns = repeat(${colCount}, 1fr);
       prizesList.forEach(prize => {
         const tile = document.createElement("div");
         tile.className = "tile";
         tile.textContent = prize.name;
         tile.dataset.id = prize.id;
         tilesOverlay.appendChild(tile);
-        // 文字配置の調整：短いときは中央、溢れる場合は先頭が見えるよう左寄せ
+        // 文字配置の調整：もしテキストが溢れる場合、左寄せにする
+        // ※ レイアウト後にチェックするため、setTimeoutを使用
         setTimeout(() => {
           if (tile.scrollWidth > tile.clientWidth) {
-            tile.style.justifyContent = "flex-start";
+            tile.style.textAlign = "left";
           } else {
-            tile.style.justifyContent = "center";
+            tile.style.textAlign = "center";
           }
         }, 0);
       });
@@ -225,7 +228,7 @@
     let running = false;
     let currentDelay = 100;
     let deceleration = 20; // 通常の減速係数
-    // 通常は maxDelay 500, 当選賞が "A" の場合は 550
+    // 通常は maxDelay 500, 但し当選賞が "A" の場合は中間値 550
     let maxDelay = 500;
     let timerId;
     let prevIndex = -1;
@@ -242,14 +245,13 @@
     function getRandomIndex(max, exclude) {
       if (max <= 1) return 0;
       let idx;
-      do { idx = Math.floor(Math.random() * max); } while (idx === exclude);
+      do {
+        idx = Math.floor(Math.random() * max);
+      } while (idx === exclude);
       return idx;
     }
     
-    // 【ここが追加部分】 スケジュール情報を参照してボーナスを加算する処理
-
-    
-    // 重み付け抽選：履歴およびスケジュールから各賞の残数を計算
+    // 重み付け抽選：履歴から各賞の残数を計算
     async function preselectWinner() {
       const historySnapshot = await getDocs(collection(db, "history"));
       const historyCounts = {};
@@ -261,15 +263,14 @@
       });
       let weightedPrizes = [];
       let totalWeight = 0;
-      for (let prize of prizesList) {
+      prizesList.forEach(prize => {
         const drawnCount = historyCounts[prize.id] || 0;
-        // 取得したボーナスを加算
-
+        const remaining = prize.quantity - drawnCount;
         if (remaining > 0) {
           weightedPrizes.push({ prize: prize, weight: remaining });
           totalWeight += remaining;
         }
-      }
+      });
       if (totalWeight <= 0) {
         preselectedWinner = null;
       } else {
@@ -293,9 +294,11 @@
       tiles[randomIndex].classList.add('active');
       prevIndex = randomIndex;
       beep();
+      // 自動停止仕様：スタート後3秒経過で減速開始
       if (Date.now() - startTime >= 3000) {
         currentDelay += deceleration;
       }
+      // 当選賞の区分が "A" の場合は maxDelay を 550 に設定、それ以外は 500
       const effectiveMaxDelay = (preselectedWinner && preselectedWinner.category === "A") ? 550 : 500;
       if (currentDelay >= effectiveMaxDelay) {
         running = false;
@@ -364,11 +367,13 @@
         alert("抽選対象となる賞がありません。");
         return;
       }
+      // 賞区分 "A" の場合は、減速期間を通常より1秒延長（effectiveMaxDelayが550）
       if (preselectedWinner.category === "A") {
-        deceleration = 17;
+        deceleration = 17;  // 中間値
       } else {
         deceleration = 20;
       }
+      // スタートボタンを隠す（visibilityで非表示）
       document.getElementById("startBtn").style.visibility = "hidden";
       running = true;
       currentDelay = 100;
