@@ -264,9 +264,7 @@
       for (let prize of prizesList) {
         const drawnCount = historyCounts[prize.id] || 0;
         // 取得したボーナスを加算
-        const bonus = await getBonusForPrize(prize.id);
-        const effectiveQuantity = prize.quantity + bonus;
-        const remaining = effectiveQuantity - drawnCount;
+
         if (remaining > 0) {
           weightedPrizes.push({ prize: prize, weight: remaining });
           totalWeight += remaining;
