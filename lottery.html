@@ -80,28 +80,20 @@
       bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
-      min-width: 140px;
-      height: 50px;
-      border-radius: 25px;
+      width: 120px;
+      height: 80px;
+      border-radius: 50%;
       border: none;
-      background-color: #FFA500;
+      background-color: rgba(255, 0, 0, 0.9);
       color: white;
       font-size: 18px;
       font-weight: bold;
       cursor: pointer;
       z-index: 10;
-      white-space: nowrap;
-      padding: 0 20px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
-      transition: transform 0.2s, box-shadow 0.2s;
-    }
-    .start-btn:hover {
-      box-shadow: 0 6px 8px rgba(0, 0, 0, 0.3);
-      transform: translateX(-50%) translateY(-2px);
+      transition: transform 0.2s;
     }
     .start-btn:active {
-      transform: translateX(-50%) translateY(0) scale(0.98);
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      transform: translateX(-50%) scale(0.95);
     }
     #resultMessage {
       text-align: center;
@@ -118,12 +110,10 @@
         font-size: 12px;
       }
       .start-btn {
-        min-width: 100px;
-        height: 40px;
+        width: 60px;
+        height: 60px;
         font-size: 14px;
         bottom: 10px;
-        border-radius: 20px;
-        padding: 0 16px;
       }
     }
   </style>
@@ -214,4 +204,135 @@
       gain.connect(audioCtx.destination);
       osc.type = "square";
       osc.frequency.setValueAtTime(440, audioCtx.currentTime);
-      gain.gain.setValueAtTime(0.5, audio
+      gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.1);
+    }
+
+    let running = false;
+    let currentDelay = 100;
+    let deceleration = 20;
+    let timerId;
+    let prevIndex = -1;
+    let preselectedWinner = null;
+    let startTime = 0;
+
+    async function preselectWinner() {
+      const historySnapshot = await getDocs(collection(db, "history"));
+      const counts = {};
+      historySnapshot.forEach(docSnap => {
+        const id = docSnap.data().prizeId;
+        counts[id] = (counts[id] || 0) + 1;
+      });
+      const weighted = [];
+      let total = 0;
+      prizesList.forEach(prize => {
+        const remaining = prize.quantity - (counts[prize.id] || 0);
+        if (remaining > 0) {
+          weighted.push({ prize, weight: remaining });
+          total += remaining;
+        }
+      });
+      if (total <= 0) {
+        preselectedWinner = null;
+        return;
+      }
+      let r = Math.random() * total;
+      for (const item of weighted) {
+        r -= item.weight;
+        if (r <= 0) {
+          preselectedWinner = item.prize;
+          break;
+        }
+      }
+    }
+
+    function clearActive() {
+      document.querySelectorAll(".tile").forEach(t => t.classList.remove("active", "winner"));
+    }
+
+    function getRandomIndex(max, exclude) {
+      if (max <= 1) return 0;
+      let idx;
+      do {
+        idx = Math.floor(Math.random() * max);
+      } while (idx === exclude);
+      return idx;
+    }
+
+    function animate() {
+      const tiles = document.querySelectorAll(".tile");
+      if (tiles.length === 0) {
+        running = false;
+        return;
+      }
+      clearActive();
+      const idx = getRandomIndex(tiles.length, prevIndex);
+      tiles[idx].classList.add("active");
+      prevIndex = idx;
+      beep();
+      if (Date.now() - startTime >= 3000) currentDelay += deceleration;
+      const maxD = preselectedWinner && preselectedWinner.category === "A" ? 550 : 500;
+      if (currentDelay >= maxD) {
+        running = false;
+        clearTimeout(timerId);
+        beep();
+        finishAnimation();
+        return;
+      }
+      timerId = setTimeout(animate, currentDelay);
+    }
+
+    async function recordWinner(winner) {
+      await addDoc(collection(db, "history"), {
+        prizeId: winner.id,
+        prizeName: winner.name,
+        rank: winner.rank,
+        timestamp: new Date()
+      }).catch(error => console.error(error));
+    }
+
+    async function finishAnimation() {
+      const msgElem = document.getElementById("resultMessage");
+      if (!preselectedWinner) {
+        msgElem.textContent = "抽選結果：当たる賞はありません。";
+        document.getElementById("startBtn").style.visibility = "visible";
+        return;
+      }
+      const tiles = Array.from(document.querySelectorAll(".tile"));
+      const winIdx = tiles.findIndex(t => t.dataset.id === preselectedWinner.id);
+      if (winIdx < 0) return;
+      clearActive();
+      tiles[winIdx].classList.add("active");
+      await recordWinner(preselectedWinner);
+      let blink = 0;
+      const interval = setInterval(() => {
+        tiles[winIdx].classList.toggle("winner");
+        if (++blink >= 15) {
+          clearInterval(interval);
+          tiles[winIdx].classList.add("winner");
+          document.getElementById("startBtn").style.visibility = "visible";
+        }
+        beep();
+      }, 200);
+    }
+
+    document.getElementById("startBtn").addEventListener("click", async () => {
+      clearActive();
+      await preselectWinner();
+      if (!preselectedWinner) {
+        alert("抽選対象となる賞がありません。");
+        return;
+      }
+      deceleration = preselectedWinner.category === "A" ? 17 : 20;
+      document.getElementById("startBtn").style.visibility = "hidden";
+      running = true;
+      currentDelay = 100;
+      prevIndex = -1;
+      document.getElementById("resultMessage").textContent = "";
+      startTime = Date.now();
+      animate();
+    });
+  </script>
+</body>
+</html>
