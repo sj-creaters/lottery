@@ -247,23 +247,7 @@
     }
     
     // 【ここが追加部分】 スケジュール情報を参照してボーナスを加算する処理
-    async function getBonusForPrize(prizeId) {
-      let bonusSum = 0;
-      const scheduleSnapshot = await getDocs(collection(db, "bonusSchedules"));
-      const now = new Date();
-      scheduleSnapshot.forEach(docSnap => {
-        const schedule = docSnap.data();
-        // 対象賞の ID が一致し、bonusDay と bonusTime を組み合わせた日時が現在時刻を過ぎている場合
-        if (schedule.targetPrizeId === prizeId) {
-          // bonusTime は Firestore Timestamp または文字列で保存されている前提
-          const scheduledTime = (schedule.bonusTime.toDate) ? schedule.bonusTime.toDate() : new Date(schedule.bonusDay + "T" + schedule.bonusTime);
-          if (now >= scheduledTime) {
-            bonusSum += schedule.bonusCount;
-          }
-        }
-      });
-      return bonusSum;
-    }
+
     
     // 重み付け抽選：履歴およびスケジュールから各賞の残数を計算
     async function preselectWinner() {
